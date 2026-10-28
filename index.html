@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>บอร์ดงานซ่อม — ตัวอย่างงานส่วนตัว (BornCode)</title>
+<meta name="description" content="ตัวอย่างระบบแจ้งเรื่องซ่อมและจัดการงานแบบไม่ใช้กระดาษ — ไฟล์ HTML ไฟล์เดียว เปิดอ่านได้ทันที" />
+<meta name="color-scheme" content="light" />
+<style>
+  /* ── design tokens ─────────────────────────────────────────────────────── */
+  :root {
+    --ink-900: #10162b;
+    --ink-700: #2b3555;
+    --ink-500: #5b668a;
+    --ink-300: #97a0bd;
+    --line: #dfe4f2;
+    --surface: #ffffff;
+    --surface-2: #f6f8ff;
+    --brand-700: #2d4799;
+    --brand-600: #3a5bc4;
+    --brand-500: #4f74e6;
+    --brand-100: #e8eeff;
+    --mint: #0f9d76;   --mint-bg: #e4f7f1;
+    --peach: #c76a12;  --peach-bg: #fdeedd;
+    --rose: #c03a5b;   --rose-bg: #fdeaef;
+    --slate: #5b668a;  --slate-bg: #eef1f8;
+    --radius-s: 10px;
+    --radius-m: 16px;
+    --radius-l: 22px;
+    --shadow-s: 0 1px 2px rgba(16, 22, 43, .06);
+    --shadow-m: 0 10px 30px -18px rgba(16, 22, 43, .45);
+    --ease: cubic-bezier(.22, .61, .36, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    font-family: "Noto Sans Thai", "Leelawadee UI", "Sarabun", -apple-system,
+      BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink-900);
+    background:
+      radial-gradient(1100px 620px at 12% -8%, #dfe8ff 0%, rgba(223, 232, 255, 0) 62%),
+      radial-gradient(900px 540px at 92% 4%, #e6f4ff 0%, rgba(230, 244, 255, 0) 60%),
+      linear-gradient(180deg, #f7f9ff 0%, #eef2fd 100%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── layout shell ──────────────────────────────────────────────────────── */
+  .shell { max-width: 1180px; margin: 0 auto; padding: 28px 20px 72px; }
+
+  .topbar {
+    display: flex; flex-wrap: wrap; gap: 16px;
+    align-items: center; justify-content: space-between;
+    margin-bottom: 26px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .mark {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: linear-gradient(140deg, var(--brand-500), var(--brand-700));
+    display: grid; place-items: center;
+    color: #fff; font-weight: 700; font-size: 17px;
+    box-shadow: 0 8px 20px -10px rgba(45, 71, 153, .9);
+  }
+  .brand-text strong { display: block; font-size: 16px; letter-spacing: .2px; }
+  .brand-text span { display: block; font-size: 12.5px; color: var(--ink-500); }
+
+  .disclaimer {
+    max-width: 560px; font-size: 12.5px; line-height: 1.55; color: var(--ink-500);
+    background: rgba(255,255,255,.72); border: 1px solid var(--line);
+    padding: 9px 13px; border-radius: var(--radius-s); backdrop-filter: blur(8px);
+  }
+  .disclaimer b { color: var(--ink-700); }
+
+  .tabs { display: flex; gap: 6px; background: rgba(255,255,255,.7); padding: 5px;
+          border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow-s); }
+  .tab {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    font: inherit; font-size: 14px; color: var(--ink-700);
+    padding: 9px 18px; border-radius: 999px; transition: background .18s var(--ease), color .18s var(--ease);
+  }
+  .tab:hover { background: var(--surface-2); }
+  .tab[aria-selected="true"] { background: var(--brand-600); color: #fff; font-weight: 600; }
+  .tab:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--brand-500); outline-offset: 2px;
+  }
+
+  .view { display: none; }
+  .view.is-active { display: block; animation: rise .3s var(--ease); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .card {
+    background: rgba(255,255,255,.86); border: 1px solid var(--line);
+    border-radius: var(--radius-l); box-shadow: var(--shadow-m);
+    backdrop-filter: blur(14px);
+  }
+
+  .card-pad { padding: 22px; }
+  .card + .card { margin-top: 18px; }
+
+  h2 { font-size: 17px; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: var(--ink-500); margin: 0 0 18px; }
+
+  /* ── form ──────────────────────────────────────────────────────────────── */
+  .grid-2 { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; font-weight: 600; color: var(--ink-700); }
+  .field .hint { font-size: 12px; color: var(--ink-500); }
+
+  input[type="text"], select, textarea {
+    font: inherit; font-size: 14px; color: var(--ink-900);
+    padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--radius-s);
+    background: #fff; width: 100%; transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
+  }
+  input[type="text"]:focus, select:focus, textarea:focus {
+    border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-100); outline: none;
+  }
+  textarea { min-height: 104px; resize: vertical; }
+
+  .btn {
+    appearance: none; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    border: 1px solid transparent; border-radius: var(--radius-s); padding: 10px 16px;
+    transition: transform .12s var(--ease), background .16s var(--ease), border-color .16s var(--ease);
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--brand-600); color: #fff; }
+  .btn-primary:hover { background: var(--brand-700); }
+  .btn-ghost { background: #fff; border-color: var(--line); color: var(--ink-700); }
+  .btn-ghost:hover { border-color: var(--brand-500); color: var(--brand-700); }
+  .btn-sm { font-size: 12.5px; padding: 7px 11px; }
+
+  .form-foot { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+  .ok {
+    font-size: 13.5px; color: var(--mint); background: var(--mint-bg);
+    border: 1px solid rgba(15,157,118,.25); padding: 9px 13px; border-radius: var(--radius-s);
+  }
+  .err { color: var(--rose); font-size: 13px; }
+
+  /* ── board ─────────────────────────────────────────────────────────────── */
+  .kpis { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 18px; }
+  .kpi { padding: 16px 18px; }
+  .kpi .n { font-size: 26px; font-weight: 700; letter-spacing: -.5px; }
+  .kpi .l { font-size: 12.5px; color: var(--ink-500); margin-top: 2px; }
+  .kpi.tone-mint .n { color: var(--mint); }
+  .kpi.tone-peach .n { color: var(--peach); }
+  .kpi.tone-rose .n { color: var(--rose); }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+  .toolbar .search { flex: 1 1 220px; max-width: 320px; }
+  .chip {
+    appearance: none; font: inherit; font-size: 12.5px; cursor: pointer;
+    border: 1px solid var(--line); background: #fff; color: var(--ink-700);
+    padding: 7px 13px; border-radius: 999px; transition: all .16s var(--ease);
+  }
+  .chip:hover { border-color: var(--brand-500); }
+  .chip[aria-pressed="true"] { background: var(--brand-100); border-color: var(--brand-500); color: var(--brand-700); font-weight: 600; }
+
+  .board-layout { display: grid; gap: 18px; grid-template-columns: 1fr 280px; align-items: start; }
+  @media (max-width: 900px) { .board-layout { grid-template-columns: 1fr; } }
+
+  .ticket-list { display: flex; flex-direction: column; gap: 12px; }
+  .ticket { padding: 16px 18px; }
+  .ticket-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .ticket-id { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--ink-500); }
+  .ticket-title { font-size: 15px; font-weight: 600; margin: 6px 0 2px; }
+  .ticket-meta { font-size: 12.5px; color: var(--ink-500); display: flex; flex-wrap: wrap; gap: 8px; }
+  .ticket-meta .dot { color: var(--line); }
+  .ticket-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+
+  .badge { font-size: 11.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .b-open { background: var(--slate-bg); color: var(--slate); }
+  .b-doing { background: var(--brand-100); color: var(--brand-700); }
+  .b-done { background: var(--mint-bg); color: var(--mint); }
+  .b-blocked { background: var(--rose-bg); color: var(--rose); }
+  .b-waiting { background: var(--peach-bg); color: var(--peach); }
+
+  .panel { padding: 18px; }
+  .panel h3 { margin: 0 0 4px; font-size: 14.5px; }
+  .panel .sub { margin-bottom: 14px; }
+
+  .tech { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .tech .who { flex: 1; font-size: 13.5px; }
+  .tech .count { font-size: 12px; color: var(--ink-500); }
+  .bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 5px; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand-500), var(--brand-700)); }
+
+  .chart { display: flex; flex-direction: column; gap: 11px; }
+  .chart-row { display: grid; grid-template-columns: 92px 1fr 34px; gap: 10px; align-items: center; font-size: 12.5px; }
+  .chart-row .track { height: 9px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .chart-row .track > i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand-500), var(--brand-700)); border-radius: 999px; }
+  .chart-row .val { text-align: right; color: var(--ink-500); }
+
+  /* ── close dialog ─────────────────────────────────────────────────────── */
+  .sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(16, 22, 43, .42);
+    display: none; align-items: center; justify-content: center; padding: 20px; z-index: 40;
+  }
+  .sheet-backdrop.is-open { display: flex; }
+  .sheet { width: min(460px, 100%); padding: 24px; }
+  .stars { display: flex; gap: 6px; margin: 4px 0 2px; }
+  .star {
+    appearance: none; border: 1px solid var(--line); background: #fff; cursor: pointer;
+    width: 38px; height: 38px; border-radius: 10px; font-size: 17px; line-height: 1;
+    display: grid; place-items: center; transition: all .14s var(--ease);
+  }
+  .star[aria-pressed="true"] { background: var(--brand-100); border-color: var(--brand-500); }
+  .sheet-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+  /* ── audit ─────────────────────────────────────────────────────────────── */
+  .events { display: flex; flex-direction: column; }
+  .event { display: grid; grid-template-columns: 132px 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+  .event:last-child { border-bottom: 0; }
+  .event time { color: var(--ink-500); font-size: 12.5px; }
+  .event .what b { color: var(--ink-700); }
+  .event .what .delta { color: var(--ink-500); }
+  @media (max-width: 620px) { .event { grid-template-columns: 1fr; gap: 2px; } }
+
+  .empty { text-align: center; color: var(--ink-500); font-size: 13.5px; padding: 30px 10px; }
+  .foot { margin-top: 26px; text-align: center; font-size: 12px; color: var(--ink-300); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">B</div>
+      <div class="brand-text">
+        <strong>BornCode — บอร์ดงานซ่อม</strong>
+        <span>ตัวอย่างงานส่วนตัว · ไฟล์ HTML ไฟล์เดียว</span>
+      </div>
+    </div>
+    <p class="disclaimer">
+      <b>ตัวอย่างที่เขียนขึ้นใหม่ทั้งหมด</b> เพื่อแสดงแนวคิดการออกแบบของระบบจัดการงานซ่อมแบบไม่ใช้กระดาษ
+      ข้อมูลในหน้านี้เป็นข้อมูลสมมติทั้งหมด ไม่มีข้อมูลจากองค์กรใด
+    </p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="มุมมอง">
+    <button class="tab" role="tab" id="tab-intake"  aria-controls="v-intake"  aria-selected="true">แจ้งเรื่อง</button>
+    <button class="tab" role="tab" id="tab-board"   aria-controls="v-board"   aria-selected="false">กระดานงาน</button>
+    <button class="tab" role="tab" id="tab-audit"   aria-controls="v-audit"   aria-selected="false">บันทึกการเปลี่ยนแปลง</button>
+  </nav>
+
+  <!-- ── view: intake ──────────────────────────────────────────────────── -->
+  <section class="view is-active" id="v-intake" role="tabpanel" aria-labelledby="tab-intake" tabindex="0">
+    <div class="card card-pad" style="margin-top:18px">
+      <h2>แจ้งเรื่องซ่อม</h2>
+      <p class="sub">กรอกข้อมูลสั้น ๆ แล้วส่ง — ไม่ต้องมีกระดาษ ไม่ต้องโทรหาใคร</p>
+
+      <form id="intake-form" novalidate>
+        <div class="grid-2">
+          <div class="field">
+            <label for="f-branch">สาขา</label>
+            <select id="f-branch" required></select>
+          </div>
+          <div class="field">
+            <label for="f-type">ประเภทงาน</label>
+            <select id="f-type" required></select>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <label for="f-name">ชื่อผู้แจ้ง</label>
+          <input type="text" id="f-name" placeholder="เช่น พนักงาน A" maxlength="60" required />
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <label for="f-detail">รายละเอียด</label>
+          <textarea id="f-detail" placeholder="บอกสั้น ๆ ว่าอะไรเสีย" maxlength="600" required></textarea>
+          <span class="hint" id="f-count">0 / 600</span>
+        </div>
+
+        <div class="form-foot">
+          <button class="btn btn-primary" type="submit">ส่งเรื่อง</button>
+          <span id="intake-msg" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </div>
+
+    <div class="card card-pad">
+      <h2>ทำไมต้องเป็นแบบนี้</h2>
+      <p class="sub">หลักการที่วางไว้ก่อนเขียนโค้ด</p>
+      <ul style="margin:0; padding-left:20px; color:var(--ink-700); font-size:13.5px; line-height:1.9">
+        <li>ผู้แจ้งไม่ต้องมีบัญชี — ตัดแรงเสียดที่ใหญ่ที่สุดของการใช้งานจริง</li>
+        <li>หน้าจอเดียวบนมือถือ เพราะคนแจ้งเรื่องอยู่หน้างาน ไม่ใช่หน้าโต๊ะ</li>
+        <li>งานทุกใบมีเจ้าของเสมอ และทุกการเปลี่ยนแปลงถูกบันทึกไว้ตรวจย้อนหลังได้</li>
+        <li>ผู้ดูแลระบบเห็นภาพรวมงานค้างก่อนเห็นรายละเอียดทุกใบ</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── view: board ───────────────────────────────────────────────────── -->
+  <section class="view" id="v-board" role="tabpanel" aria-labelledby="tab-board" tabindex="0" hidden>
+    <div class="kpis" id="kpis"></div>
+
+    <div class="toolbar">
+      <input class="search" type="text" id="f-search" placeholder="ค้นหาจากเลขงาน ผู้แจ้ง หรือรายละเอียด" />
+      <select id="f-type-filter" style="max-width:190px"></select>
+      <div id="status-chips" style="display:flex; gap:8px; flex-wrap:wrap"></div>
+    </div>
+
+    <div class="board-layout">
+      <div class="card card-pad">
+        <h2>งานทั้งหมด</h2>
+        <p class="sub" id="board-count"></p>
+        <div class="ticket-list" id="ticket-list"></div>
+      </div>
+
+      <div>
+        <div class="card panel">
+          <h3>ช่างและงานที่ค้าง</h3>
+          <p class="sub">โหลดงานต่อคน — ตัดสินใจมอบหมายได้เร็วขึ้น</p>
+          <div id="tech-list"></div>
+        </div>
+
+        <div class="card panel" style="margin-top:18px">
+          <h3>งานตามประเภท</h3>
+          <p class="sub">นับจากงานทั้งหมดในระบบ</p>
+          <div class="chart" id="chart"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── view: audit ───────────────────────────────────────────────────── -->
+  <section class="view" id="v-audit" role="tabpanel" aria-labelledby="tab-audit" tabindex="0" hidden>
+    <div class="card card-pad" style="margin-top:18px">
+      <h2>บันทึกการเปลี่ยนแปลง</h2>
+      <p class="sub">ทุกการแก้ไขเก็บ "เปลี่ยนอะไร จากอะไร เป็นอะไร โดยใคร เมื่อไร" — ใช้ตรวจย้อนหลังได้</p>
+      <div class="events" id="event-list"></div>
+      <div class="form-foot">
+        <button class="btn btn-ghost btn-sm" id="btn-reset" type="button">รีเซ็ตข้อมูลตัวอย่าง</button>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">BornCode · ตัวอย่างงานส่วนตัว — ข้อมูลทั้งหมดเป็นข้อมูลสมมติ</p>
+</div>
+
+<!-- close-work sheet -->
+<div class="sheet-backdrop" id="sheet-backdrop">
+  <div class="card sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <h2 id="sheet-title">ปิดงาน</h2>
+    <p class="sub" id="sheet-sub"></p>
+
+    <div class="field">
+      <label>คะแนนความพอใจ</label>
+      <div class="stars" id="stars" role="group" aria-label="คะแนนความพอใจ 1 ถึง 5"></div>
+      <span class="hint" id="star-label">เลือกคะแนน — คะแนน 1–2 ต้องเขียนเหตุผล</span>
+    </div>
+
+    <div class="field" style="margin-top:14px">
+      <label for="f-resolution">สรุปสิ่งที่ทำ</label>
+      <textarea id="f-resolution" placeholder="บอกสั้น ๆ ว่าแก้อะไรไป" maxlength="400"></textarea>
+    </div>
+
+    <div class="field" style="margin-top:14px">
+      <label for="f-reason">เหตุผลที่คะแนนต่ำ (จำเป็นเมื่อคะแนน 1–2)</label>
+      <input type="text" id="f-reason" placeholder="ระบุเหตุผล" maxlength="200" />
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn btn-ghost" id="btn-cancel" type="button">ยกเลิก</button>
+      <button class="btn btn-primary" id="btn-confirm" type="button">บันทึกและปิดงาน</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ── static reference data (synthetic) ───────────────────────────────── */
+  const BRANCHES = ['สาขา A', 'สาขา B', 'สาขา C'];
+  const WORK_TYPES = ['ไฟฟ้า', 'ประปา', 'แอร์', 'อุปกรณ์สำนักงาน'];
+  const TECHS = ['ช่าง ก', 'ช่าง ข', 'ช่าง ค', 'ช่าง ง'];
+  const STATUS = {
+    open:    { label: 'รอดำเนินการ', cls: 'b-open' },
+    doing:   { label: 'กำลังดำเนินการ', cls: 'b-doing' },
+    waiting: { label: 'รออะไร', cls: 'b-waiting' },
+    done:    { label: 'เสร็จแล้ว', cls: 'b-done' },
+    blocked: { label: 'ทำไม่ได้', cls: 'b-blocked' },
+  };
+  const RATING_LABELS = ['ไม่พอใจเลย', 'ไม่พอใจ', 'ปานกลาง', 'พอใจ', 'พอใจมาก'];
+
+  /* ── state ────────────────────────────────────────────────────────────── */
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000);
+  const state = { tickets: [], events: [], seq: 7, filters: { status: 'all', type: 'all', q: '' } };
+
+  function seed() {
+    state.seq = 8;
+    state.tickets = [
+      { id: 'SR-0001', branch: 'สาขา A', type: 'ไฟฟ้า', requester: 'พนักงาน A', detail: 'เดินสายไฟห้องประชุมหลุด', status: 'doing', tech: 'ช่าง ก', rating: null, created: daysAgo(5), closed: null, reason: '' },
+      { id: 'SR-0002', branch: 'สาขา B', type: 'ประปา', requester: 'พนักงาน B', detail: 'กรอกน้ำชั้น 2 รั่ว', status: 'open', tech: null, rating: null, created: daysAgo(3), closed: null, reason: '' },
+      { id: 'SR-0003', branch: 'สาขา A', type: 'แอร์', requester: 'พนักงาน C', detail: 'แอร์ห้องทำงานเย็นไม่เย็น', status: 'waiting', tech: 'ช่าง ข', rating: null, created: daysAgo(4), closed: null, reason: '' },
+      { id: 'SR-0004', branch: 'สาขา C', type: 'อุปกรณ์สำนักงาน', requester: 'พนักงาน D', detail: 'เครื่องพิมพ์ขึ้นข้อผิดพลาด', status: 'done', tech: 'ช่าง ค', rating: 5, created: daysAgo(6), closed: daysAgo(5), reason: '' },
+      { id: 'SR-0005', branch: 'สาขา B', type: 'ไฟฟ้า', requester: 'พนักงาน E', detail: 'สวิตช์ไฟหน้าห้องเสีย', status: 'done', tech: 'ช่าง ก', rating: 4, created: daysAgo(7), closed: daysAgo(6), reason: '' },
+      { id: 'SR-0006', branch: 'สาขา C', type: 'ประปา', requester: 'พนักงาน F', detail: 'โถส้วมชั้น 1 ติด', status: 'blocked', tech: 'ช่าง ง', rating: null, created: daysAgo(2), closed: null, reason: '' },
+      { id: 'SR-0007', branch: 'สาขา A', type: 'อุปกรณ์สำนักงาน', requester: 'พนักงาน G', detail: 'เครื่องฉายภาพเปิดไม่ได้', status: 'open', tech: null, rating: null, created: daysAgo(1), closed: null, reason: '' },
+    ];
+    state.events = [
+      { at: daysAgo(6), actor: 'ช่าง ค', ticket: 'SR-0004', what: 'ปิดงาน', delta: 'เสร็จแล้ว · คะแนน 5' },
+      { at: daysAgo(5), actor: 'ช่าง ก', ticket: 'SR-0001', what: 'รับงาน', delta: 'รอดำเนินการ → กำลังดำเนินการ' },
+      { at: daysAgo(5), actor: 'ผู้ดูแล', ticket: 'SR-0005', what: 'มอบหมาย', delta: 'ไม่มีช่าง → ช่าง ก' },
+      { at: daysAgo(4), actor: 'ช่าง ข', ticket: 'SR-0003', what: 'ขอรออะไร', delta: 'กำลังดำเนินการ → รออะไร' },
+      { at: daysAgo(2), actor: 'ช่าง ง', ticket: 'SR-0006', what: 'ทำไม่ได้', delta: 'กำลังดำเนินการ → ทำไม่ได้' },
+    ];
+  }
+
+  /* ── helpers ──────────────────────────────────────────────────────────── */
+  const $ = (sel) => document.querySelector(sel);
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+  const fmtDate = (d) => {
+    const t = new Date(d);
+    return t.toLocaleDateString('th-TH', { day: '2-digit', month: 'short' }) +
+      ' ' + t.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  };
+  const nextId = () => 'SR-' + String(state.seq++).padStart(4, '0');
+  const log = (actor, ticket, what, delta) =>
+    state.events.unshift({ at: new Date(), actor, ticket, what, delta });
+
+  /* ── tabs ─────────────────────────────────────────────────────────────── */
+  const TABS = ['intake', 'board', 'audit'];
+  function show(view) {
+    TABS.forEach((v) => {
+      const tab = $('#tab-' + v);
+      const panel = $('#v-' + v);
+      const on = v === view;
+      tab.setAttribute('aria-selected', String(on));
+      panel.classList.toggle('is-active', on);
+      panel.hidden = !on;
+    });
+    if (view === 'board') renderBoard();
+    if (view === 'audit') renderEvents();
+  }
+  TABS.forEach((v) => $('#tab-' + v).addEventListener('click', () => show(v)));
+
+  /* ── intake form ─────────────────────────────────────────────────────── */
+  function fillSelect(sel, values, first) {
+    sel.innerHTML = '';
+    if (first) {
+      const o = el('option', null, first);
+      o.value = '';
+      sel.appendChild(o);
+    }
+    values.forEach((v) => {
+      const o = el('option', null, v);
+      o.value = v;
+      sel.appendChild(o);
+    });
+  }
+
+  fillSelect($('#f-branch'), BRANCHES, '— เลือกสาขา —');
+  fillSelect($('#f-type'), WORK_TYPES, '— เลือกประเภทงาน —');
+  fillSelect($('#f-type-filter'), WORK_TYPES);
+
+  const detail = $('#f-detail');
+  detail.addEventListener('input', () => {
+    $('#f-count').textContent = detail.value.length + ' / 600';
+  });
+
+  $('#intake-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const branch = $('#f-branch').value;
+    const type = $('#f-type').value;
+    const name = $('#f-name').value.trim();
+    const text = detail.value.trim();
+    const msg = $('#intake-msg');
+
+    if (!branch || !type || !name || !text) {
+      msg.className = 'err';
+      msg.textContent = 'กรอกให้ครบทุกช่องก่อนส่ง';
+      return;
+    }
+
+    const ticket = {
+      id: nextId(), branch, type, requester: name, detail: text,
+      status: 'open', tech: null, rating: null, created: new Date(), closed: null, reason: '',
+    };
+    state.tickets.unshift(ticket);
+    log(name, ticket.id, 'แจ้งเรื่อง', 'สร้างเรื่องใหม่');
+
+    $('#f-name').value = '';
+    detail.value = '';
+    $('#f-count').textContent = '0 / 600';
+    $('#f-branch').value = '';
+    $('#f-type').value = '';
+
+    msg.className = 'ok';
+    msg.textContent = 'ส่งเรื่องแล้ว — เลขที่ ' + ticket.id + ' (ดูได้ที่แท็บกระดานงาน)';
+  });
+
+  /* ── board ────────────────────────────────────────────────────────────── */
+  const STATUS_FILTERS = [
+    { key: 'all', label: 'ทั้งหมด' },
+    { key: 'open', label: 'รอดำเนินการ' },
+    { key: 'doing', label: 'กำลังทำ' },
+    { key: 'waiting', label: 'รออะไร' },
+    { key: 'done', label: 'เสร็จแล้ว' },
+    { key: 'blocked', label: 'ทำไม่ได้' },
+  ];
+
+  function renderChips() {
+    const box = $('#status-chips');
+    box.innerHTML = '';
+    STATUS_FILTERS.forEach((f) => {
+      const b = el('button', 'chip', f.label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(state.filters.status === f.key));
+      b.addEventListener('click', () => {
+        state.filters.status = f.key;
+        renderBoard();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function visibleTickets() {
+    const { status, type, q } = state.filters;
+    const needle = q.trim().toLowerCase();
+    return state.tickets.filter((t) => {
+      if (status !== 'all' && t.status !== status) return false;
+      if (type !== 'all' && t.type !== type) return false;
+      if (!needle) return true;
+      return (t.id + ' ' + t.requester + ' ' + t.detail + ' ' + t.branch + ' ' + t.type)
+        .toLowerCase().includes(needle);
+    });
+  }
+
+  function renderKpis() {
+    const total = state.tickets.length;
+    const open = state.tickets.filter((t) => t.status === 'open' || t.status === 'doing' || t.status === 'waiting').length;
+    const done = state.tickets.filter((t) => t.status === 'done').length;
+    const rated = state.tickets.filter((t) => t.rating);
+    const avg = rated.length ? (rated.reduce((s, t) => s + t.rating, 0) / rated.length).toFixed(1) : '—';
+
+    const box = $('#kpis');
+    box.innerHTML = '';
+    [['ทั้งหมด', total, ''], ['งานที่ยังค้าง', open, 'tone-peach'], ['งานที่เสร็จแล้ว', done, 'tone-mint'],
+     ['คะแนนเฉลี่ย', avg, 'tone-rose']].forEach(([l, n, tone]) => {
+      const c = el('div', 'card kpi ' + tone);
+      c.appendChild(el('div', 'n', String(n)));
+      c.appendChild(el('div', 'l', l));
+      box.appendChild(c);
+    });
+  }
+
+  function renderTechs() {
+    const box = $('#tech-list');
+    box.innerHTML = '';
+    const load = {};
+    TECHS.forEach((t) => (load[t] = 0));
+    state.tickets.forEach((t) => {
+      if (t.tech && load[t.tech] != null && t.status !== 'done') load[t.tech] += 1;
+    });
+    const max = Math.max(1, ...Object.values(load));
+    TECHS.forEach((t) => {
+      const row = el('div', 'tech');
+      const who = el('div', 'who');
+      who.appendChild(el('div', null, t));
+      const count = el('div', 'count', load[t] + ' งานค้าง');
+      who.appendChild(count);
+      row.appendChild(who);
+      const bar = el('div', 'bar');
+      const fill = el('i');
+      fill.style.width = (load[t] / max) * 100 + '%';
+      bar.appendChild(fill);
+      row.appendChild(bar);
+      box.appendChild(row);
+    });
+  }
+
+  function renderChart() {
+    const box = $('#chart');
+    box.innerHTML = '';
+    const counts = WORK_TYPES.map((w) => state.tickets.filter((t) => t.type === w).length);
+    const max = Math.max(1, ...counts);
+    WORK_TYPES.forEach((w, i) => {
+      const row = el('div', 'chart-row');
+      row.appendChild(el('div', null, w));
+      const track = el('div', 'track');
+      const fill = el('i');
+      fill.style.width = (counts[i] / max) * 100 + '%';
+      track.appendChild(fill);
+      row.appendChild(track);
+      row.appendChild(el('div', 'val', String(counts[i])));
+      box.appendChild(row);
+    });
+  }
+
+  let closeTarget = null;
+
+  function ticketCard(t) {
+    const card = el('div', 'card ticket');
+
+    const head = el('div', 'ticket-head');
+    const left = el('div');
+    left.appendChild(el('div', 'ticket-id', t.id));
+    const badge = el('span', 'badge ' + STATUS[t.status].cls, STATUS[t.status].label);
+    left.appendChild(badge);
+    head.appendChild(left);
+    const right = el('div', 'ticket-id', fmtDate(t.created));
+    head.appendChild(right);
+    card.appendChild(head);
+
+    card.appendChild(el('div', 'ticket-title', t.detail));
+
+    const meta = el('div', 'ticket-meta');
+    [t.branch, t.type, 'ผู้แจ้ง: ' + t.requester, t.tech ? 'ช่าง: ' + t.tech : 'ยังไม่มีช่าง']
+      .forEach((txt, i) => {
+        if (i) meta.appendChild(el('span', 'dot', '·'));
+        meta.appendChild(el('span', null, txt));
+      });
+    card.appendChild(meta);
+
+    if (t.rating) {
+      const r = el('div', 'ticket-meta');
+      r.appendChild(el('span', 'badge b-done', '★'.repeat(t.rating) + ' ' + RATING_LABELS[t.rating - 1]));
+      if (t.reason) r.appendChild(el('span', null, 'เหตุผล: ' + t.reason));
+      card.appendChild(r);
+    }
+
+    const actions = el('div', 'ticket-actions');
+
+    if (t.status !== 'done' && t.status !== 'blocked') {
+      const sel = el('select');
+      sel.style.maxWidth = '150px';
+      const blank = el('option', null, 'มอบหมายช่าง…');
+      blank.value = '';
+      sel.appendChild(blank);
+      TECHS.forEach((tech) => {
+        const o = el('option', null, tech);
+        o.value = tech;
+        if (t.tech === tech) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.addEventListener('change', () => {
+        if (!sel.value) return;
+        const from = t.tech || 'ไม่มีช่าง';
+        t.tech = sel.value;
+        if (t.status === 'open') t.status = 'doing';
+        log('ผู้ดูแล', t.id, 'มอบหมาย', from + ' → ' + t.tech);
+        renderBoard();
+      });
+      actions.appendChild(sel);
+    }
+
+    if (t.status !== 'done') {
+      const close = el('button', 'btn btn-primary btn-sm', 'ปิดงาน');
+      close.type = 'button';
+      close.addEventListener('click', () => openSheet(t));
+      actions.appendChild(close);
+    } else {
+      const reopen = el('button', 'btn btn-ghost btn-sm', 'เปิดใหม่');
+      reopen.type = 'button';
+      reopen.addEventListener('click', () => {
+        const from = t.status;
+        t.status = 'doing';
+        t.closed = null;
+        log('ผู้ดูแล', t.id, 'เปิดใหม่', from + ' → กำลังดำเนินการ');
+        renderBoard();
+      });
+      actions.appendChild(reopen);
+    }
+
+    const hist = el('button', 'btn btn-ghost btn-sm', 'ประวัติ');
+    hist.type = 'button';
+    hist.addEventListener('click', () => {
+      const rows = state.events.filter((e) => e.ticket === t.id);
+      alert(t.id + '\n\n' + (rows.length ? rows.map((r) => fmtDate(r.at) + ' — ' + r.what + ' — ' + r.delta).join('\n') : 'ยังไม่มีเหตุการณ์'));
+    });
+    actions.appendChild(hist);
+
+    card.appendChild(actions);
+    return card;
+  }
+
+  function renderBoard() {
+    renderChips();
+    renderKpis();
+    renderTechs();
+    renderChart();
+
+    const list = $('#ticket-list');
+    list.innerHTML = '';
+    const rows = visibleTickets();
+    $('#board-count').textContent = 'แสดง ' + rows.length + ' จาก ' + state.tickets.length + ' งาน';
+    if (!rows.length) {
+      list.appendChild(el('div', 'empty', 'ไม่มีงานที่ตรงกับตัวกรอง — ลองเปลี่ยนตัวกรองดู'));
+      return;
+    }
+    rows.forEach((t) => list.appendChild(ticketCard(t)));
+  }
+
+  $('#f-search').addEventListener('input', (e) => {
+    state.filters.q = e.target.value;
+    renderBoard();
+  });
+  $('#f-type-filter').addEventListener('change', (e) => {
+    state.filters.type = e.target.value;
+    renderBoard();
+  });
+
+  /* ── close-work sheet ────────────────────────────────────────────────── */
+  const backdrop = $('#sheet-backdrop');
+  let picked = 0;
+
+  function buildStars() {
+    const box = $('#stars');
+    box.innerHTML = '';
+    for (let i = 1; i <= 5; i += 1) {
+      const b = el('button', 'star', '★');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'คะแนน ' + i);
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', () => {
+        picked = i;
+        [...box.children].forEach((c, idx) => c.setAttribute('aria-pressed', String(idx < i)));
+        $('#star-label').textContent = RATING_LABELS[i - 1] + (i <= 2 ? ' — ต้องเขียนเหตุผล' : '');
+      });
+      box.appendChild(b);
+    }
+  }
+  buildStars();
+
+  function openSheet(t) {
+    closeTarget = t;
+    picked = 0;
+    buildStars();
+    $('#f-resolution').value = '';
+    $('#f-reason').value = '';
+    $('#star-label').textContent = 'เลือกคะแนน — คะแนน 1–2 ต้องเขียนเหตุผล';
+    $('#sheet-sub').textContent = t.id + ' · ' + t.detail;
+    backdrop.classList.add('is-open');
+    $('#f-resolution').focus();
+  }
+
+  function closeSheet() {
+    backdrop.classList.remove('is-open');
+    closeTarget = null;
+  }
+
+  $('#btn-cancel').addEventListener('click', closeSheet);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+
+  $('#btn-confirm').addEventListener('click', () => {
+    if (!closeTarget) return;
+    const t = closeTarget;
+    const resolution = $('#f-resolution').value.trim();
+    const reason = $('#f-reason').value.trim();
+
+    if (!picked) { alert('เลือกคะแนนความพอใจก่อน'); return; }
+    if (picked <= 2 && !reason) { alert('คะแนน 1–2 ต้องระบุเหตุผล'); return; }
+    if (!resolution) { alert('ใส่สรุปสิ่งที่ทำสั้น ๆ'); return; }
+
+    const from = STATUS[t.status].label;
+    t.status = 'done';
+    t.rating = picked;
+    t.reason = reason;
+    t.closed = new Date();
+    log(t.tech || 'ทีมงาน', t.id, 'ปิดงาน', from + ' → เสร็จแล้ว · คะแนน ' + picked);
+    closeSheet();
+    renderBoard();
+  });
+
+  /* ── audit view ──────────────────────────────────────────────────────── */
+  function renderEvents() {
+    const box = $('#event-list');
+    box.innerHTML = '';
+    if (!state.events.length) {
+      box.appendChild(el('div', 'empty', 'ยังไม่มีเหตุการณ์'));
+      return;
+    }
+    state.events.forEach((e) => {
+      const row = el('div', 'event');
+      const t = el('time', null, fmtDate(e.at));
+      row.appendChild(t);
+      const what = el('div', 'what');
+      what.appendChild(el('b', null, e.actor + ' · ' + e.ticket + ' · ' + e.what + ' '));
+      what.appendChild(el('span', 'delta', '— ' + e.delta));
+      row.appendChild(what);
+      box.appendChild(row);
+    });
+  }
+
+  $('#btn-reset').addEventListener('click', () => {
+    seed();
+    state.filters = { status: 'all', type: 'all', q: '' };
+    $('#f-search').value = '';
+    $('#f-type-filter').value = '';
+    renderBoard();
+    renderEvents();
+  });
+
+  /* ── boot ────────────────────────────────────────────────────────────── */
+  seed();
+  renderBoard();
+  renderEvents();
+})();
+</script>
+</body>
+</html>
